@@ -236,6 +236,9 @@ public class FileAwareInputStreamDataWriter extends InstrumentedDataWriter<FileA
     final long blockSize = copyableFile.getBlockSize(this.fs);
     final long fileSize = copyableFile.getFileStatus().getLen();
 
+    // Store source file size in state
+    this.state.setProp(ConfigurationKeys.SOURCE_FILE_SIZE_KEY, fileSize);
+
     long expectedBytes = fileSize;
     Long maxBytes = null;
     // Whether writer must write EXACTLY maxBytes.
@@ -484,6 +487,11 @@ public class FileAwareInputStreamDataWriter extends InstrumentedDataWriter<FileA
         // is created for every task's commit
         FileContext.getFileContext(this.uri, this.conf).rename(stagingFilePath, outputFilePath, renameOptions);
       }
+
+      // Get destination file size after commit
+      long destFileSize = this.fs.getFileStatus(outputFilePath).getLen();
+      this.state.setProp(ConfigurationKeys.DEST_FILE_SIZE_KEY, destFileSize);
+
     } catch (IOException ioe) {
       log.error("Could not commit file {}.", outputFilePath);
       // persist file

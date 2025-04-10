@@ -1238,4 +1238,10 @@ public class ConfigurationKeys {
   public static final String JOB_METRICS_REPORTER_CLASS_KEY = "gobblin.job.metrics.reporter.class";
   public static final String DEFAULT_JOB_METRICS_REPORTER_CLASS = "org.apache.gobblin.runtime.metrics.DefaultGobblinJobMetricReporter";
 
+  // File size policy configuration keys
+  public static final String SOURCE_FILE_SIZE_KEY = "source.file.size.bytes";
+  public static final String DEST_FILE_SIZE_KEY = "dest.file.size.bytes";
+  public static final String FILE_SIZE_TOLERANCE_PERCENT_KEY = "file.size.tolerance.percent";
+  public static final double DEFAULT_FILE_SIZE_TOLERANCE_PERCENT = 10.0;
+
 }

@@ -1073,7 +1073,38 @@ public class Task implements TaskIFace {
   }
 
   private boolean checkDataQuality(Optional<Object> schema) throws Exception {
-    // ... existing code ...
+    if (this.branches > 1) {
+      this.forkTaskState.setProp(ConfigurationKeys.EXTRACTOR_ROWS_EXPECTED,
+          this.taskState.getProp(ConfigurationKeys.EXTRACTOR_ROWS_EXPECTED));
+      this.forkTaskState.setProp(ConfigurationKeys.EXTRACTOR_ROWS_EXTRACTED,
+          this.taskState.getProp(ConfigurationKeys.EXTRACTOR_ROWS_EXTRACTED));
+    }
+
+    // Set file sizes in state for file size policy
+    if (this.writer.isPresent()) {
+      long sourceSize = this.extractor.getSourceFileSize();
+      long destSize = this.writer.get().getBytesWritten();
+      
+      this.forkTaskState.setProp(ConfigurationKeys.SOURCE_FILE_SIZE_KEY, sourceSize);
+      this.forkTaskState.setProp(ConfigurationKeys.DEST_FILE_SIZE_KEY, destSize);
+      
+      LOG.info("Setting file sizes - Source: {} bytes, Destination: {} bytes", sourceSize, destSize);
+    }
+
+    String writerRecordsWrittenKey =
+        ForkOperatorUtils.getPropertyNameForBranch(ConfigurationKeys.WRITER_RECORDS_WRITTEN, this.branches, this.index);
+    if (this.writer.isPresent()) {
+      this.forkTaskState.setProp(ConfigurationKeys.WRITER_ROWS_WRITTEN, this.writer.get().recordsWritten());
+      this.taskState.setProp(writerRecordsWrittenKey, this.writer.get().recordsWritten());
+    } else {
+      this.forkTaskState.setProp(ConfigurationKeys.WRITER_ROWS_WRITTEN, 0L);
+      this.taskState.setProp(writerRecordsWrittenKey, 0L);
+    }
+
+    if (schema.isPresent()) {
+      this.forkTaskState.setProp(ConfigurationKeys.EXTRACT_SCHEMA, schema.get().toString());
+    }
+
     try {
       // Do task-level quality checking
       TaskLevelPolicyCheckResults taskResults =
