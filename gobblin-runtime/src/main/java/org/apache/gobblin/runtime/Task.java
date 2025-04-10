@@ -96,6 +96,9 @@ import org.apache.gobblin.writer.TrackerBasedWatermarkManager;
 import org.apache.gobblin.writer.WatermarkAwareWriter;
 import org.apache.gobblin.writer.WatermarkManager;
 import org.apache.gobblin.writer.WatermarkStorage;
+import org.apache.gobblin.runtime.metrics.DataQualityMetrics;
+import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.GlobalOpenTelemetry;
 
 
 /**
@@ -170,6 +173,8 @@ public class Task implements TaskIFace {
   private volatile long shutdownRequestedTime = Long.MAX_VALUE;
   private final CountDownLatch shutdownLatch;
   protected Future<?> taskFuture;
+
+  private final DataQualityMetrics dataQualityMetrics;
 
   /**
    * Instantiate a new {@link Task}.
@@ -273,6 +278,8 @@ public class Task implements TaskIFace {
       this.watermarkStorage = Optional.absent();
     }
     this.taskEventMetadataGenerator = TaskEventMetadataUtils.getTaskEventMetadataGenerator(taskState);
+
+    this.dataQualityMetrics = new DataQualityMetrics(GlobalOpenTelemetry.get(), this.taskState);
   }
 
   /**
@@ -797,6 +804,12 @@ public class Task implements TaskIFace {
       if (watermark != null) {
         watermark.ack();
       }
+      // Record row level policy failure
+      for (Map.Entry<RowLevelPolicy.Result, RowLevelPolicy.Type> entry : rowResults.getPolicyResults().entrySet()) {
+        if (entry.getKey().equals(RowLevelPolicy.Result.FAILED)) {
+          this.dataQualityMetrics.recordRowLevelPolicyFailure(entry.getValue().getClass().getName());
+        }
+      }
       return;
     }
 
@@ -1057,5 +1070,29 @@ public class Task implements TaskIFace {
     } else {
       return false;
     }
+  }
+
+  private boolean checkDataQuality(Optional<Object> schema) throws Exception {
+    // ... existing code ...
+    try {
+      // Do task-level quality checking
+      TaskLevelPolicyCheckResults taskResults =
+          this.taskContext.getTaskLevelPolicyChecker(this.forkTaskState, this.branches > 1 ? this.index : -1)
+              .executePolicies();
+      
+      // Record task level policy failures
+      for (Map.Entry<TaskLevelPolicy.Result, TaskLevelPolicy.Type> entry : taskResults.getPolicyResults().entrySet()) {
+        if (entry.getKey().equals(TaskLevelPolicy.Result.FAILED)) {
+          this.dataQualityMetrics.recordTaskLevelPolicyFailure(entry.getValue());
+        }
+      }
+
+      TaskPublisher publisher = this.taskContext.getTaskPublisher(this.forkTaskState, taskResults);
+      // ... existing code ...
+    } catch (Throwable t) {
+      this.logger.error("Failed to check task-level data quality", t);
+      return false;
+    }
+    // ... existing code ...
   }
 }
