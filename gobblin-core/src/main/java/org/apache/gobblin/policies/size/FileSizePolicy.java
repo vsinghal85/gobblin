@@ -15,7 +15,7 @@ public class FileSizePolicy extends TaskLevelPolicy {
     // Configuration keys
     public static final String SOURCE_FILE_SIZE_KEY = "source.file.size.bytes";
     public static final String DEST_FILE_SIZE_KEY = "dest.file.size.bytes";
-    
+
     public FileSizePolicy(State state, Type type) {
         super(state, type);
     }

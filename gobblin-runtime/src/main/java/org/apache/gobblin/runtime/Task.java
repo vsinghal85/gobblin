@@ -1084,10 +1084,10 @@ public class Task implements TaskIFace {
     if (this.writer.isPresent()) {
       long sourceSize = this.extractor.getSourceFileSize();
       long destSize = this.writer.get().getBytesWritten();
-      
+
       this.forkTaskState.setProp(ConfigurationKeys.SOURCE_FILE_SIZE_KEY, sourceSize);
       this.forkTaskState.setProp(ConfigurationKeys.DEST_FILE_SIZE_KEY, destSize);
-      
+
       LOG.info("Setting file sizes - Source: {} bytes, Destination: {} bytes", sourceSize, destSize);
     }
 
@@ -1110,13 +1110,19 @@ public class Task implements TaskIFace {
       TaskLevelPolicyCheckResults taskResults =
           this.taskContext.getTaskLevelPolicyChecker(this.forkTaskState, this.branches > 1 ? this.index : -1)
               .executePolicies();
-      
+
       // Record task level policy failures
+      boolean hasFailedPolicies = false;
       for (Map.Entry<TaskLevelPolicy.Result, TaskLevelPolicy.Type> entry : taskResults.getPolicyResults().entrySet()) {
         if (entry.getKey().equals(TaskLevelPolicy.Result.FAILED)) {
           this.dataQualityMetrics.recordTaskLevelPolicyFailure(entry.getValue());
+          hasFailedPolicies = true;
         }
       }
+
+      // Update overall data quality state
+      this.taskState.setProp(ConfigurationKeys.DATA_QUALITY_STATE,
+          hasFailedPolicies ? "FAILED" : "PASSED");
 
       TaskPublisher publisher = this.taskContext.getTaskPublisher(this.forkTaskState, taskResults);
       // ... existing code ...

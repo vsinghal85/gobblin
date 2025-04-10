@@ -382,6 +382,7 @@ public class Fork<S, D> implements Closeable, FinalState, RecordStreamConsumer<S
       boolean dataQualityPassed = false;
       
       while (retryCount < maxRetries && !dataQualityPassed) {
+
         if (checkDataQuality(this.convertedSchema)) {
           dataQualityPassed = true;
           // Commit data if all quality checkers pass. Again, not to catch the exception
