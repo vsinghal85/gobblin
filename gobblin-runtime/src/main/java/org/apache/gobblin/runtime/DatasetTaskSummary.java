@@ -24,6 +24,7 @@ import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 
+import lombok.ToString;
 import org.apache.gobblin.metrics.DatasetMetric;
 
 
@@ -34,18 +35,19 @@ import org.apache.gobblin.metrics.DatasetMetric;
 @Data
 @Setter(AccessLevel.NONE) // NOTE: non-`final` members solely to enable deserialization
 @RequiredArgsConstructor
-@NoArgsConstructor // IMPORTANT: for jackson (de)serialization
+@NoArgsConstructor
+@ToString// IMPORTANT: for jackson (de)serialization
 public class DatasetTaskSummary {
   @NonNull private String datasetUrn;
   @NonNull private long recordsWritten;
   @NonNull private long bytesWritten;
   @NonNull private boolean successfullyCommitted;
-  @NonNull private boolean dataQualityCheckPassed;
+  @NonNull private String dataQualityStatus;
 
   /**
    * Convert a {@link DatasetTaskSummary} to a {@link DatasetMetric}.
    */
   public static DatasetMetric toDatasetMetric(DatasetTaskSummary datasetTaskSummary) {
-    return new DatasetMetric(datasetTaskSummary.getDatasetUrn(), datasetTaskSummary.getBytesWritten(), datasetTaskSummary.getRecordsWritten(), datasetTaskSummary.isSuccessfullyCommitted());
+    return new DatasetMetric(datasetTaskSummary.getDatasetUrn(), datasetTaskSummary.getBytesWritten(), datasetTaskSummary.getRecordsWritten(), datasetTaskSummary.isSuccessfullyCommitted(), datasetTaskSummary.getDataQualityStatus());
   }
 }
