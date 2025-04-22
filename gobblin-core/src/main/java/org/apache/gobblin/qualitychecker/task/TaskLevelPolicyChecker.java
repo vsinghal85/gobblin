@@ -30,6 +30,10 @@ import org.slf4j.LoggerFactory;
  * in a PolicyCheckResults object
  */
 public class TaskLevelPolicyChecker {
+  public enum DataQualityStatus {
+    PASSED,
+    FAILED
+  }
   private final List<TaskLevelPolicy> list;
   private static final Logger LOG = LoggerFactory.getLogger(TaskLevelPolicyChecker.class);
 
@@ -51,7 +55,7 @@ public class TaskLevelPolicyChecker {
       }
       LOG.info("TaskLevelPolicy " + p + " of type " + p.getType() + " executed with result " + result);
     }
-    state.setProp(TASK_LEVEL_POLICY_RESULT_KEY, allRequiredPoliciesPassed ? "PASSED" : "FAILED");
+    state.setProp(TASK_LEVEL_POLICY_RESULT_KEY, allRequiredPoliciesPassed ? DataQualityStatus.PASSED.name() : DataQualityStatus.FAILED.name());
     return results;
   }
 }
