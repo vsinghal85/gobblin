@@ -821,19 +821,19 @@ public class JobState extends SourceState implements JobProgress {
       if (otelMetrics != null) {
         Attributes tags = Attributes.builder()
             .put(TimingEvent.FlowEventConstants.JOB_NAME_FIELD, jobState.getJobName())
-            .put(TimingEvent.DATASET_URN, this.getDatasetUrn())
+            .put(TimingEvent.FlowEventConstants.JOB_EXECUTION_ID_FIELD, jobState.jobId)
+            .put("datasetUrn", this.getDatasetUrn())
             .build();
-        
+
         // Emit data quality status (1 for PASSED, 0 for FAILED)
+
         TaskLevelPolicyChecker.DataQualityStatus finalJobDataQuality = jobDataQuality;
         log.info("Data quality status for this job is " + finalJobDataQuality);
         otelMetrics.getMeter(GAAS_OBSERVABILITY_METRICS_GROUPNAME)
-            .gaugeBuilder(ServiceMetricNames.DATA_QUALITY_STATUS_METRIC_NAME)
-            .ofLongs()
-            .buildWithCallback(measurement -> {
-              log.info("Emitting metric for data quality");
-              measurement.record(TaskLevelPolicyChecker.DataQualityStatus.PASSED.equals(finalJobDataQuality) ? 1 : 0, tags);
-            });
+            .counterBuilder(ServiceMetricNames.DATA_QUALITY_STATUS_METRIC_NAME)
+            .build()
+            .add(TaskLevelPolicyChecker.DataQualityStatus.PASSED.equals(finalJobDataQuality) ? 1 : 0, tags);
+        log.info("Metrics emission call successfull with tags " + tags.toString());
       }
     }
 
