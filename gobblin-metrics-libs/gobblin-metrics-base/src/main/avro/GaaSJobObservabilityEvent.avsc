@@ -261,9 +261,9 @@
               },
               {
                 "name": "dataQualityStatus",
-                "type": ["null","string"],
+                "type": ["string"],
                 "doc": "Whether the dataset passed the overall data quality check",
-                "default": null
+                "default": "NOT_EVALUATED"
               }
             ]
           }
