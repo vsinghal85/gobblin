@@ -372,6 +372,8 @@ public class FileAwareInputStreamDataWriter extends InstrumentedDataWriter<FileA
     OwnerAndPermission targetOwnerAndPermission = setOwnerExecuteBitIfDirectory(file, ownerAndPermission);
     try {
       if (!targetOwnerAndPermission.getAclEntries().isEmpty()) {
+        // Clear existing ACLs before setting new ones
+        fs.removeAcl(path);
         // use modify acls instead of setAcl since latter requires all three acl entry types: user, group and others
         // while overwriting the acls for a given path. If anyone is absent it fails acl transformation validation.
         fs.modifyAclEntries(path, targetOwnerAndPermission.getAclEntries());
@@ -479,7 +481,6 @@ public class FileAwareInputStreamDataWriter extends InstrumentedDataWriter<FileA
       Iterator<OwnerAndPermission> ancestorOwnerAndPermissionIt =
           copyableFile.getAncestorsOwnerAndPermission() == null ? Collections.emptyIterator()
               : copyableFile.getAncestorsOwnerAndPermission().listIterator();
-
       HadoopUtils.ensureDirectoryExists(this.fs, outputFilePath.getParent(), ancestorOwnerAndPermissionIt, false);
       if (copyableFile.getFileStatus().isDirectory() && this.fs.exists(outputFilePath)) {
         log.info(String.format("CopyableFile %s is a directory which already exists at %s - skipping overwrite; if necessary, publisher will sync metadata",

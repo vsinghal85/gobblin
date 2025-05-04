@@ -804,14 +804,20 @@ public class JobState extends SourceState implements JobProgress {
      */
     public void computeAndStoreQualityStatus(JobState jobState) {
       TaskLevelPolicyChecker.DataQualityStatus jobDataQuality = TaskLevelPolicyChecker.DataQualityStatus.PASSED;
-
+      int totalFiles = 0;
+      int failedFilesSize = 0;
+      int passedFilesSize = 0;
       for (TaskState taskState : getTaskStates()) {
+        totalFiles++;
         String qualityResult = taskState.getProp(TaskLevelPolicyChecker.TASK_LEVEL_POLICY_RESULT_KEY);
         log.info("Data quality status of this task is: " + qualityResult);
         if (qualityResult != null && !TaskLevelPolicyChecker.DataQualityStatus.PASSED.name().equals(qualityResult)) {
+          failedFilesSize++;
           log.info("Data quality not passed: " + qualityResult);
           jobDataQuality = TaskLevelPolicyChecker.DataQualityStatus.FAILED;
-          break;
+        }
+        else if(qualityResult != null && TaskLevelPolicyChecker.DataQualityStatus.PASSED.name().equals(qualityResult)){
+          passedFilesSize++;
         }
       }
       super.setProp(ConfigurationKeys.DATASET_QUALITY_STATUS_KEY, jobDataQuality.name());
@@ -834,6 +840,20 @@ public class JobState extends SourceState implements JobProgress {
             .build()
             .add(TaskLevelPolicyChecker.DataQualityStatus.PASSED.equals(finalJobDataQuality) ? 1 : 0, tags);
         log.info("Metrics emission call successfull with tags " + tags.toString());
+
+        otelMetrics.getMeter(GAAS_OBSERVABILITY_METRICS_GROUPNAME)
+            .counterBuilder(ServiceMetricNames.DATA_QUALITY_OVERALL_FILE_COUNT)
+            .build()
+            .add(totalFiles, tags);
+        // Emit passed files count
+        otelMetrics.getMeter(GAAS_OBSERVABILITY_METRICS_GROUPNAME)
+            .counterBuilder(ServiceMetricNames.DATA_QUALITY_SUCCESS_FILE_COUNT)
+            .build().add(passedFilesSize, tags);
+        // Emit failed files count
+        otelMetrics.getMeter(GAAS_OBSERVABILITY_METRICS_GROUPNAME)
+            .counterBuilder(ServiceMetricNames.DATA_QUALITY_FAILURE_FILE_COUNT)
+            .build().add(failedFilesSize, tags);
+
       }
     }
 

@@ -140,6 +140,7 @@ public class ManifestBasedDataset implements IterableCopyableDataset {
                             new Path(commonFilesParent), configuration, permissionMap))
                     .destinationOwnerAndPermission(replicatedPermission);
             CopyableFile copyableFile = copyableFileBuilder.build();
+            copyableFile.getDestinationOwnerAndPermission();
             copyableFile.setFsDatasets(srcFs, targetFs);
             copyEntities.add(copyableFile);
 
