@@ -42,7 +42,7 @@ public class IncorrectSizeFileAwareInputStreamDataWriter extends FileAwareInputS
 
   public static final String INCORRECT_SIZE_RATIO_KEY = CopyConfiguration.COPY_PREFIX + ".incorrect.size.ratio";
   public static final String INCORRECT_SIZE_OFFSET_KEY = CopyConfiguration.COPY_PREFIX + ".incorrect.size.offset";
-  public static final double DEFAULT_INCORRECT_SIZE_RATIO = 1.0;
+  public static final double DEFAULT_INCORRECT_SIZE_RATIO = 0.9; // Default to 90% of actual size
   public static final long DEFAULT_INCORRECT_SIZE_OFFSET = 0L;
 
   private final double sizeRatio;

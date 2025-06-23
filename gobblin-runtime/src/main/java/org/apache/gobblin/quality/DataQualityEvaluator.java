@@ -1,3 +1,20 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.apache.gobblin.quality;
 
 import java.io.IOException;
@@ -10,7 +27,6 @@ import org.apache.gobblin.metrics.OpenTelemetryMetricsBase;
 import org.apache.gobblin.metrics.ServiceMetricNames;
 import org.apache.gobblin.metrics.event.TimingEvent;
 import org.apache.gobblin.qualitychecker.DataQualityStatus;
-import org.apache.gobblin.qualitychecker.task.TaskLevelPolicyChecker;
 import org.apache.gobblin.runtime.JobState;
 import org.apache.gobblin.runtime.TaskState;
 import org.apache.gobblin.service.ServiceConfigKeys;
@@ -96,16 +112,9 @@ public class DataQualityEvaluator {
             totalFiles++;
             DataQualityStatus taskDataQuality = null;
             String result = taskState.getProp(ConfigurationKeys.TASK_LEVEL_POLICY_RESULT_KEY);
-            if (result != null) {
-                try {
-                    taskDataQuality = DataQualityStatus.valueOf(result);
-                } catch (IllegalArgumentException e) {
-                    log.warn("Unknown data quality status encountered " + result);
-                    // since we are setting known enums to task state, this should never happen
-                    taskDataQuality = DataQualityStatus.UNKNOWN;
-                }
-
-                log.info("Data quality status of this task is: " + taskDataQuality);
+            taskDataQuality = DataQualityStatus.fromString(result);
+            if (taskDataQuality != DataQualityStatus.NOT_EVALUATED) {
+                log.debug("Data quality status of this task is: " + taskDataQuality);
                 if (DataQualityStatus.PASSED == taskDataQuality) {
                     passedFilesSize++;
                 } else if (DataQualityStatus.FAILED == taskDataQuality){
@@ -113,9 +122,9 @@ public class DataQualityEvaluator {
                     jobDataQuality = DataQualityStatus.FAILED;
                 }
             } else {
-                // Handle files without data quality evaluation (result is null)
+                // Handle files without data quality evaluation
                 nonEvaluatedFilesSize++;
-                log.warn("No data quality evaluation available for task: " + taskState.getTaskId());
+                log.warn("No data quality evaluation for task: " + taskState.getTaskId());
             }
         }
 
@@ -126,32 +135,17 @@ public class DataQualityEvaluator {
     }
 
     private static void emitMetrics(JobState jobState, DataQualityStatus jobDataQuality, int totalFiles,
-            int passedFilesSize, int failedFilesSize, int nonEvaluatedFilesSize) {
-        emitMetrics(jobState, jobDataQuality, totalFiles, passedFilesSize, failedFilesSize, nonEvaluatedFilesSize,
-            jobState.getProp(ConfigurationKeys.DATASET_URN_KEY));
-    }
-
-    private static void emitMetrics(JobState jobState, DataQualityStatus jobDataQuality, int totalFiles,
-            int passedFilesSize, int failedFilesSize, String datasetUrn) {
-        emitMetrics(jobState, jobDataQuality, totalFiles, passedFilesSize, failedFilesSize, 0, datasetUrn);
-    }
-
-    private static void emitMetrics(JobState jobState, DataQualityStatus jobDataQuality, int totalFiles,
             int passedFilesSize, int failedFilesSize, int nonEvaluatedFilesSize, String datasetUrn) {
         OpenTelemetryMetricsBase otelMetrics = OpenTelemetryMetrics.getInstance(jobState);
         if (otelMetrics != null) {
             Attributes tags = getTagsForDataQualityMetrics(jobState, datasetUrn);
             // Emit data quality status (1 for PASSED, 0 for FAILED)
-            DataQualityStatus finalJobDataQuality = jobDataQuality;
+            final DataQualityStatus finalJobDataQuality = jobDataQuality;
             log.info("Data quality status for this job is " + finalJobDataQuality);
             otelMetrics.getMeter(GAAS_OBSERVABILITY_METRICS_GROUPNAME)
-                .gaugeBuilder(ServiceMetricNames.DATA_QUALITY_STATUS_METRIC_NAME)
-                .ofLongs()
-                .buildWithCallback(measurement -> {
-                    log.info("Emitting metric for data quality");
-                    measurement.record(DataQualityStatus.PASSED.equals(finalJobDataQuality) ? 1 : 0, tags);
-                });
-
+                .counterBuilder(ServiceMetricNames.DATA_QUALITY_STATUS_METRIC_NAME)
+                .build()
+                .add(finalJobDataQuality == DataQualityStatus.PASSED ? 1 : 0, tags);
             otelMetrics.getMeter(GAAS_OBSERVABILITY_METRICS_GROUPNAME)
                 .counterBuilder(ServiceMetricNames.DATA_QUALITY_OVERALL_FILE_COUNT)
                 .build()
@@ -177,11 +171,12 @@ public class DataQualityEvaluator {
 
     private static Attributes getTagsForDataQualityMetrics(JobState jobState, String datasetUrn) {
         Properties jobProperties = new Properties();
+        jobState.toJsonString();
         try {
             jobProperties = PropertiesUtils.deserialize(jobState.getProp("job.props", ""));
             log.info("Job properties loaded: " + jobProperties);
         } catch (IOException e) {
-            log.error("Could not deserialize job properties", e);
+            log.error("Could not deserialize job properties to be used for data quality metrics for job {} ", jobState.getJobId(), e);
         }
 
         return Attributes.builder()
@@ -198,5 +193,4 @@ public class DataQualityEvaluator {
             .build();
     }
 }
-    }
-}
+

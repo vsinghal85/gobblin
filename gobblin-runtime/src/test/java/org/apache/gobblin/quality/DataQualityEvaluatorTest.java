@@ -1,3 +1,20 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.apache.gobblin.quality;
 
 import java.util.ArrayList;
@@ -116,9 +133,9 @@ public class DataQualityEvaluatorTest {
         Assert.assertEquals(result.getPassedFiles(), 2, "Should have 2 passed files");
         Assert.assertEquals(result.getFailedFiles(), 1, "Should have 1 failed file");
 
-        // Verify dataset quality status is stored correctly
-        Assert.assertEquals(datasetState.getDataQualityStatus(), DataQualityStatus.FAILED.name(),
-            "Dataset should be marked as FAILED when any task fails data quality");
+        // Verify dataset quality status is stored correctly in jobState (where DataQualityEvaluator sets it)
+        Assert.assertEquals(jobState.getProp(ConfigurationKeys.DATASET_QUALITY_STATUS_KEY), DataQualityStatus.FAILED.name(),
+            "JobState should be marked as FAILED when any task fails data quality");
 
         // Verify task states are preserved
         Assert.assertEquals(datasetState.getTaskStates().size(), 3, "All task states should be preserved");
@@ -128,7 +145,6 @@ public class DataQualityEvaluatorTest {
     public void testAllPassedScenario() {
         // Create a job state for testing all passed scenario
         JobState jobState = new JobState("AllPassedTestJob", "AllPassedTestJob-1");
-        jobState.createDatasetStatesByUrns();
         JobState.DatasetState datasetState = new JobState.DatasetState("AllPassedTestJob", "AllPassedTestJob-1");
 
         // Create task states with all PASSED data quality results
@@ -154,9 +170,9 @@ public class DataQualityEvaluatorTest {
         Assert.assertEquals(result.getPassedFiles(), 2, "Should have 2 passed files");
         Assert.assertEquals(result.getFailedFiles(), 0, "Should have 0 failed files");
 
-        // Verify dataset quality status is stored correctly
-        Assert.assertEquals(datasetState.getDataQualityStatus(), DataQualityStatus.PASSED.name(),
-            "Dataset should be marked as PASSED when all tasks pass data quality");
+        // Verify dataset quality status is stored correctly in jobState (where DataQualityEvaluator sets it)
+        Assert.assertEquals(jobState.getProp(ConfigurationKeys.DATASET_QUALITY_STATUS_KEY), DataQualityStatus.PASSED.name(),
+            "JobState should be marked as PASSED when all tasks pass data quality");
     }
 
     @Test
@@ -176,8 +192,56 @@ public class DataQualityEvaluatorTest {
         Assert.assertEquals(result.getPassedFiles(), 0, "Should have 0 passed files");
         Assert.assertEquals(result.getFailedFiles(), 0, "Should have 0 failed files");
 
-        // Verify dataset quality status is stored correctly
-        Assert.assertEquals(datasetState.getDataQualityStatus(), DataQualityStatus.PASSED.name(),
-            "Dataset should be marked as PASSED when no task states exist");
+        // Verify dataset quality status is stored correctly in jobState (where DataQualityEvaluator sets it)
+        Assert.assertEquals(jobState.getProp(ConfigurationKeys.DATASET_QUALITY_STATUS_KEY), DataQualityStatus.PASSED.name(),
+            "JobState should be marked as PASSED when no task states exist");
+    }
+
+    @Test
+    public void testWithSomeEmptyTaskStates() {
+        // Create a job state for testing mixed task states scenario
+        JobState jobState = new JobState("MixedTestJob", "MixedTestJob-1");
+        JobState.DatasetState datasetState = new JobState.DatasetState("MixedTestJob", "MixedTestJob-1");
+
+        // Create task states with mixed data quality results
+        for (int i = 0; i < 4; i++) {
+            WorkUnit workUnit = WorkUnit.createEmpty();
+            WorkUnitState workUnitState = new WorkUnitState(workUnit);
+            workUnitState.setProp(ConfigurationKeys.JOB_ID_KEY, "MixedTestJob-1");
+            workUnitState.setProp(ConfigurationKeys.TASK_ID_KEY, "task-" + i);
+
+            TaskState taskState = new TaskState(workUnitState);
+
+            // Set data quality status for some tasks, leave others empty
+            if (i == 0) {
+                taskState.setProp(ConfigurationKeys.TASK_LEVEL_POLICY_RESULT_KEY, DataQualityStatus.PASSED.name());
+            } else if (i == 1) {
+                taskState.setProp(ConfigurationKeys.TASK_LEVEL_POLICY_RESULT_KEY, DataQualityStatus.PASSED.name());
+            } else {
+                // Tasks 2 and 3 have no data quality status set (null)
+                // This simulates tasks that were not evaluated for data quality
+            }
+
+            datasetState.addTaskState(taskState);
+        }
+
+        // Test the DataQualityEvaluator with mixed task states
+        DataQualityEvaluator.DataQualityEvaluationResult result =
+            DataQualityEvaluator.evaluateAndReportDatasetQuality(datasetState, jobState);
+
+        // Verify evaluation results for mixed task states
+        Assert.assertEquals(result.getQualityStatus(), DataQualityStatus.PASSED,
+            "Overall quality should be PASSED when some tasks pass and others are not evaluated");
+        Assert.assertEquals(result.getTotalFiles(), 4, "Should have 4 total files");
+        Assert.assertEquals(result.getPassedFiles(), 2, "Should have 2 passed files");
+        Assert.assertEquals(result.getFailedFiles(), 0, "Should have 0 failed files");
+        Assert.assertEquals(result.getNonEvaluatedFiles(), 2, "Should have 2 non-evaluated files");
+
+        // Verify dataset quality status is stored correctly in jobState (where DataQualityEvaluator sets it)
+        Assert.assertEquals(jobState.getProp(ConfigurationKeys.DATASET_QUALITY_STATUS_KEY), DataQualityStatus.PASSED.name(),
+            "JobState should be marked as PASSED when some tasks pass and others are not evaluated");
+
+        // Verify task states are preserved
+        Assert.assertEquals(datasetState.getTaskStates().size(), 4, "All task states should be preserved");
     }
 }
